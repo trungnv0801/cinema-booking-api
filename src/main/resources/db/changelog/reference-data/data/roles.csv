@@ -1,0 +1,4 @@
+code,name,description
+ADMIN,Administrator,System-wide access. Not scoped to any cinema.
+CASHIER,Cashier,Sells tickets and concessions at the counter for a single cinema.
+CUSTOMER,Customer,Books tickets and concessions through the public site. Not scoped to any cinema.

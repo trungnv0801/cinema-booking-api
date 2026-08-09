@@ -1,0 +1,2 @@
+code,name,discount_percent,day_of_week,priority,is_active
+MARQUEE_WEDNESDAY,Marquee Wednesdays,30,3,10,TRUE

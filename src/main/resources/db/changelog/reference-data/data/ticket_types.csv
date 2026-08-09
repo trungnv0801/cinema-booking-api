@@ -1,0 +1,5 @@
+code,name,discount_percent,requires_proof,proof_note,is_active,display_order
+ADULT,Adult,0,FALSE,,TRUE,1
+STUDENT,Student,20,TRUE,Valid student ID required at the door,TRUE,2
+CHILD,Child,20,FALSE,,TRUE,3
+SENIOR,Senior Citizen,20,TRUE,Valid ID showing age 60+ required,TRUE,4

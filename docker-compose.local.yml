@@ -1,0 +1,28 @@
+services:
+  app:
+    build:
+      target: build
+    command:
+      - sh
+      - -c
+      - >-
+        apk add --no-cache entr;
+        ./mvnw -q compile;
+        while true; do find src pom.xml -type f | entr -dn ./mvnw -q compile; done &
+        exec ./mvnw spring-boot:run
+    restart: "no"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-database}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-username}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DEVTOOLS_RESTART_POLL_INTERVAL: 1s
+      SPRING_DEVTOOLS_RESTART_QUIET_PERIOD: 400ms
+    volumes:
+      - .:/app
+      - maven_cache:/root/.m2
+
+volumes:
+  maven_cache:
