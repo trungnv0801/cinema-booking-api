@@ -5,3 +5,8 @@ spring:
     password: password
     driver-class-name: org.postgresql.Driver
 
+app:
+  cookie:
+    secure: false
+  jwt:
+    secret: ${JWT_SECRET}

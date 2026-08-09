@@ -9,7 +9,8 @@ Backend API for the Cinema Booking system, built with Spring Boot.
 - **Spring Data JPA** + **PostgreSQL** — persistence
 - **Spring Data Redis** — caching / session data
 - **Liquibase** — database schema migrations (`src/main/resources/db/changelog`)
-- **Spring Security** — request filter chain (stateless, CORS-enabled)
+- **Spring Security** — stateless JWT authentication/authorization (BCrypt password hashing, custom auth entry point / access-denied handling)
+- **JJWT** — JWT issuing and verification
 - **springdoc-openapi** — OpenAPI 3 / Swagger UI
 - **Lombok**
 - **Spotless (Google Java Format)** — code formatting, enforced in CI and on `mvn verify`
@@ -29,7 +30,12 @@ Environment variables are read from a `.env` file at the project root (used by D
 1. Copy the example file:
    - Linux/macOS: `cp .env.example .env`
    - Windows (PowerShell): `Copy-Item .env.example .env`
-2. Adjust values as needed.
+2. Generate a JWT secret and set it (**required** — the app fails to start without it):
+   - Linux/macOS: `openssl rand -base64 48`
+   - Windows (PowerShell): `[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))`
+
+   Put the result in `.env` as `JWT_SECRET=...`.
+3. Adjust other values as needed.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -43,6 +49,12 @@ Environment variables are read from a `.env` file at the project root (used by D
 | `SPRING_PROFILES_ACTIVE` | `local` | Active Spring profile: `local`, `stg`, or `prod` |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Allowed CORS origin(s) |
 | `APP_SERVER_URL` | `http://localhost:8080` | Public base URL advertised in the OpenAPI docs |
+| `JWT_SECRET` | *(none — required)* | Secret key used to sign/verify access & refresh tokens |
+| `JWT_ACCESS_TOKEN_TTL_SECONDS` | `900` | Access token lifetime |
+| `JWT_REFRESH_TOKEN_TTL_DAYS` | `30` | Refresh token lifetime (set as an `httpOnly` cookie) |
+| `COOKIE_SECURE` | `true` | Whether the refresh-token cookie requires HTTPS (set `false` for local HTTP dev) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | *(empty)* | If both are set, an admin account is seeded on startup — see [Authentication](#authentication) |
+| `ADMIN_FULL_NAME` | `Administrator` | Display name for the seeded admin account |
 
 ### Profile files
 
@@ -55,7 +67,22 @@ cp src/main/resources/application.example.yaml src/main/resources/application-lo
 # edit application-local.yaml with your local Postgres connection details
 ```
 
-Do the same (`application-stg.yaml`, `application-prod.yaml`) on staging/production hosts if you deploy the jar directly rather than via Docker Compose (see below). When running via Docker Compose, database/Redis connection settings are instead injected as environment variables, so these files are not required inside the container.
+`application.example.yaml` (and therefore the file you just copied) leaves `app.jwt.secret` as `${JWT_SECRET}` — a placeholder, not an actual value. **Spring Boot does not read the `.env` file** (that file is only consumed by Docker Compose), so when running the jar/`spring-boot:run` directly on the host, that placeholder will fail to resolve unless you either:
+
+- replace it in `application-local.yaml` with an actual generated secret, e.g. `app.jwt.secret: <output of openssl rand -base64 48>` (same idea as how the datasource credentials are hardcoded in that file), **or**
+- export `JWT_SECRET` in your shell before running the app, e.g. `export JWT_SECRET=$(openssl rand -base64 48)` (Linux/macOS) or `$env:JWT_SECRET = "..."` (Windows PowerShell).
+
+Do the same (`application-stg.yaml`, `application-prod.yaml`) on staging/production hosts if you deploy the jar directly rather than via Docker Compose (see below). When running via Docker Compose, database/Redis/JWT settings are instead injected as environment variables from `.env`, so these files are not required inside the container.
+
+## Authentication
+
+Login is JWT-based:
+
+- `POST {api.prefix}/auth/login` — body `{ "identifier": "<email>", "password": "<password>" }`. On success, returns an access token (`accessToken`, `tokenType`, `expiresIn`, and the authenticated `user`) and sets an `httpOnly` refresh-token cookie scoped to `{api.prefix}/auth`.
+- Protected endpoints require `Authorization: Bearer <accessToken>`; `{api.prefix}/auth/admin/**` additionally requires the `ADMIN` authority.
+- `{api.prefix}/auth/login`, `/api-docs/**`, `/swagger-ui/**`, and `/actuator/**` are the only publicly accessible paths — everything else requires authentication (see `SecurityConfig`).
+
+**Bootstrap admin account**: if both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, `AdminAccountSeeder` creates (or leaves untouched, if it already exists) an admin user with the `ADMIN` role on application startup — this is the way to get your first login on a fresh database. Leave them blank to skip seeding.
 
 ## Running with Docker
 
@@ -182,6 +209,9 @@ The app is deployed as a Docker image built from the provided `Dockerfile` (mult
    | `LIQUIBASE_CONTEXTS` | changelog contexts to apply (e.g. `prod`) |
    | `CORS_ALLOWED_ORIGINS` | allowed frontend origin(s) |
    | `APP_SERVER_URL` | public base URL, shown in Swagger docs |
+   | `JWT_SECRET` | **required** — secret used to sign/verify JWTs |
+   | `COOKIE_SECURE` | should be `true` (default) so the refresh-token cookie is HTTPS-only |
+   | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | set once to seed the initial admin account; safe to leave blank afterwards |
 
    These map directly onto the equivalent `spring.*` / `app.*` YAML keys via Spring Boot's relaxed environment-variable binding, mirroring what `docker-compose.yml` does for the `app` service.
 

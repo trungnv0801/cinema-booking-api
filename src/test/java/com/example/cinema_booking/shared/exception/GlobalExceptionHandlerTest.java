@@ -2,6 +2,9 @@ package com.example.cinema_booking.shared.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.cinema_booking.identity.domain.UserStatus;
+import com.example.cinema_booking.identity.domain.exception.AccountNotActiveException;
+import com.example.cinema_booking.identity.domain.exception.InvalidCredentialsException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
@@ -24,6 +27,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -183,4 +189,50 @@ class GlobalExceptionHandlerTest {
   private void dummyMethod(String value) {}
 
   private record Validatable(@NotBlank String value) {}
+
+  @Test
+  void handlesInvalidCredentials() {
+    ProblemDetail problemDetail =
+        handler.handleDomainException(new InvalidCredentialsException(), request);
+
+    assertThat(problemDetail.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+    assertThat(problemDetail.getDetail()).isEqualTo("Invalid email/phone or password.");
+  }
+
+  @Test
+  void handlesAccountNotActiveWithStatusArgument() {
+    ProblemDetail problemDetail =
+        handler.handleDomainException(new AccountNotActiveException(UserStatus.LOCKED), request);
+
+    assertThat(problemDetail.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
+    assertThat(problemDetail.getDetail()).isEqualTo("Account is not active (LOCKED).");
+  }
+
+  @Test
+  void handlesBadCredentials() {
+    ProblemDetail problemDetail =
+        handler.handleBadCredentials(new BadCredentialsException("bad"), request);
+
+    assertThat(problemDetail.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+    assertThat(problemDetail.getDetail()).isEqualTo("Invalid email/phone or password.");
+  }
+
+  @Test
+  void handlesGenericAuthenticationException() {
+    ProblemDetail problemDetail =
+        handler.handleAuthentication(new InsufficientAuthenticationException("missing"), request);
+
+    assertThat(problemDetail.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+    assertThat(problemDetail.getDetail()).isEqualTo("Authentication is required.");
+  }
+
+  @Test
+  void handlesAccessDenied() {
+    ProblemDetail problemDetail =
+        handler.handleAccessDenied(new AccessDeniedException("denied"), request);
+
+    assertThat(problemDetail.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
+    assertThat(problemDetail.getDetail())
+        .isEqualTo("You do not have permission to access this resource.");
+  }
 }

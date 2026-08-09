@@ -3,8 +3,6 @@ package com.example.cinema_booking.shared.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
-import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -16,6 +14,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -28,8 +29,6 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-  private static final String PROBLEM_TYPE_BASE = "/problems/";
 
   private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -96,6 +95,23 @@ public class GlobalExceptionHandler {
     return build(HttpStatus.NOT_FOUND, "error.not-found", request);
   }
 
+  @ExceptionHandler(BadCredentialsException.class)
+  public ProblemDetail handleBadCredentials(
+      BadCredentialsException ex, HttpServletRequest request) {
+    return build(HttpStatus.UNAUTHORIZED, "auth.invalid-credentials", request);
+  }
+
+  @ExceptionHandler(AuthenticationException.class)
+  public ProblemDetail handleAuthentication(
+      AuthenticationException ex, HttpServletRequest request) {
+    return build(HttpStatus.UNAUTHORIZED, "error.unauthorized", request);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ProblemDetail handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+    return build(HttpStatus.FORBIDDEN, "error.access-denied", request);
+  }
+
   @ExceptionHandler(DataIntegrityViolationException.class)
   public ProblemDetail handleDataIntegrityViolation(
       DataIntegrityViolationException ex, HttpServletRequest request) {
@@ -137,16 +153,7 @@ public class GlobalExceptionHandler {
 
   private ProblemDetail newProblemDetail(
       HttpStatus status, String messageCode, String detail, HttpServletRequest request) {
-    ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, detail);
-    problemDetail.setType(URI.create(PROBLEM_TYPE_BASE + problemTypeSlug(messageCode)));
-    problemDetail.setInstance(URI.create(request.getRequestURI()));
-    problemDetail.setProperty("timestamp", OffsetDateTime.now());
-    return problemDetail;
-  }
-
-  private String problemTypeSlug(String messageCode) {
-    int dotIndex = messageCode.indexOf('.');
-    return dotIndex >= 0 ? messageCode.substring(dotIndex + 1) : messageCode;
+    return ProblemDetailFactory.create(status, messageCode, detail, request);
   }
 
   private String resolveMessage(String messageCode, Object... args) {

@@ -1,0 +1,27 @@
+package com.example.cinema_booking.identity.infrastructure.persistence.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "roles")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class RoleEntity {
+
+  @Id
+  @Column(length = 30)
+  private String code;
+
+  @Column(nullable = false, length = 100)
+  private String name;
+
+  @Column(columnDefinition = "TEXT")
+  private String description;
+}
