@@ -1,0 +1,4 @@
+seat_type,name,surcharge_vnd,seats_per_unit
+STANDARD,Standard,0,1
+VIP,VIP,20000,1
+COUPLE,Couple Seat,50000,2

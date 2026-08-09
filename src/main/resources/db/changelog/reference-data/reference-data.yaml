@@ -1,0 +1,147 @@
+databaseChangeLog:
+  - changeSet:
+      id: ref-01-roles
+      author: saomai
+      runOnChange: true
+      comment: Role catalogue referenced by user_roles
+      changes:
+        - loadUpdateData:
+            tableName: roles
+            file: data/roles.csv
+            relativeToChangelogFile: true
+            primaryKey: code
+            columns:
+              - column: { name: code,        type: STRING }
+              - column: { name: name,        type: STRING }
+              - column: { name: description, type: STRING }
+      rollback:
+        - delete:
+            tableName: roles
+
+  - changeSet:
+      id: ref-02-genres
+      author: saomai
+      runOnChange: true
+      changes:
+        - loadUpdateData:
+            tableName: genres
+            file: data/genres.csv
+            relativeToChangelogFile: true
+            primaryKey: code
+            columns:
+              - column: { name: code, type: STRING }
+              - column: { name: name, type: STRING }
+      rollback:
+        - delete:
+            tableName: genres
+
+  - changeSet:
+      id: ref-03-ticket-types
+      author: saomai
+      runOnChange: true
+      comment: Standard and student ticket pricing. Part of the live price list.
+      changes:
+        - loadUpdateData:
+            tableName: ticket_types
+            file: data/ticket_types.csv
+            relativeToChangelogFile: true
+            primaryKey: code
+            columns:
+              - column: { name: code,             type: STRING }
+              - column: { name: name,             type: STRING }
+              - column: { name: discount_percent, type: NUMERIC }
+              - column: { name: requires_proof,   type: BOOLEAN }
+              - column: { name: proof_note,       type: STRING }
+              - column: { name: is_active,        type: BOOLEAN }
+              - column: { name: display_order,    type: NUMERIC }
+      rollback:
+        - delete:
+            tableName: ticket_types
+
+  - changeSet:
+      id: ref-04-seat-type-prices
+      author: saomai
+      runOnChange: true
+      changes:
+        - loadUpdateData:
+            tableName: seat_type_prices
+            file: data/seat_type_prices.csv
+            relativeToChangelogFile: true
+            primaryKey: seat_type
+            columns:
+              - column: { name: seat_type,      type: STRING }
+              - column: { name: name,           type: STRING }
+              - column: { name: surcharge_vnd,  type: NUMERIC }
+              - column: { name: seats_per_unit, type: NUMERIC }
+      rollback:
+        - delete:
+            tableName: seat_type_prices
+
+  - changeSet:
+      id: ref-05-discount-rules
+      author: saomai
+      runOnChange: true
+      comment: >
+        Happy Wednesday has been running for two years. Without it the system charges
+        the wrong price, so it ships with phase 1 rather than with the promotions module.
+      changes:
+        - loadUpdateData:
+            tableName: discount_rules
+            file: data/discount_rules.csv
+            relativeToChangelogFile: true
+            primaryKey: code
+            columns:
+              - column: { name: code,             type: STRING }
+              - column: { name: name,             type: STRING }
+              - column: { name: discount_percent, type: NUMERIC }
+              - column: { name: day_of_week,      type: NUMERIC }
+              - column: { name: priority,         type: NUMERIC }
+              - column: { name: is_active,        type: BOOLEAN }
+      rollback:
+        - delete:
+            tableName: discount_rules
+            where: code = 'HAPPY_WEDNESDAY'
+
+  - changeSet:
+      id: ref-06-product-categories
+      author: saomai
+      runOnChange: true
+      labels: phase-2
+      changes:
+        - loadUpdateData:
+            tableName: product_categories
+            file: data/product_categories.csv
+            relativeToChangelogFile: true
+            primaryKey: code
+            columns:
+              - column: { name: code,          type: STRING }
+              - column: { name: name,          type: STRING }
+              - column: { name: display_order, type: NUMERIC }
+      rollback:
+        - delete:
+            tableName: product_categories
+
+  - changeSet:
+      id: ref-07-loyalty-config
+      author: saomai
+      labels: phase-2
+      comment: Date-effective config; a rate change adds a row rather than editing this one.
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT count(*) FROM loyalty_configs
+      changes:
+        - loadData:
+            tableName: loyalty_configs
+            file: data/loyalty_configs.csv
+            relativeToChangelogFile: true
+            columns:
+              - column: { name: earn_rate_percent, type: NUMERIC }
+              - column: { name: point_value_vnd,   type: NUMERIC }
+              - column: { name: expiry_months,     type: NUMERIC }
+              - column: { name: min_redeem_points, type: NUMERIC }
+              - column: { name: effective_from,    type: DATE }
+      rollback:
+        - delete:
+            tableName: loyalty_configs

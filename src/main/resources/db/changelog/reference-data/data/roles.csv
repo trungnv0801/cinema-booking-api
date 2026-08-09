@@ -1,0 +1,5 @@
+code,name,description
+ADMIN,Administrator,System-wide access. Not scoped to any cinema.
+CINEMA_MANAGER,Cinema Manager,"Manages a single cinema: pricing overrides, staff, shift reconciliation."
+CASHIER,Cashier,Sells tickets and concessions at the counter.
+USHER,Usher,Scans tickets and checks customers in at the auditorium door.

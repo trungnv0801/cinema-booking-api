@@ -1,0 +1,14 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+.idea/
+.vscode/
+*.iml
+.git/
+.gitignore
+.gitattributes
+README.md
+HELP.md
+src/main/resources/application-local.yaml
+src/main/resources/application-staging.yaml
+src/main/resources/application-production.yaml
+liquibase.properties

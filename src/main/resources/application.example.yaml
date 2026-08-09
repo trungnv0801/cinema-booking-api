@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: cinema-booking 
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cinema_booking_db
+    username: username
+    password: password
+    driver-class-name: org.postgresql.Driver
+

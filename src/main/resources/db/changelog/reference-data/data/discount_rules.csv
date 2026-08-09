@@ -1,0 +1,2 @@
+code,name,discount_percent,day_of_week,priority,is_active
+HAPPY_WEDNESDAY,Happy Wednesday,50,3,10,TRUE
