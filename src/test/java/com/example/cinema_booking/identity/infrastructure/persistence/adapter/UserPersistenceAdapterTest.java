@@ -1,6 +1,7 @@
 package com.example.cinema_booking.identity.infrastructure.persistence.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -8,7 +9,10 @@ import static org.mockito.Mockito.when;
 import com.example.cinema_booking.identity.application.port.out.UserRoleAssignment;
 import com.example.cinema_booking.identity.domain.User;
 import com.example.cinema_booking.identity.domain.UserStatus;
+import com.example.cinema_booking.identity.infrastructure.persistence.entity.RoleEntity;
 import com.example.cinema_booking.identity.infrastructure.persistence.entity.UserEntity;
+import com.example.cinema_booking.identity.infrastructure.persistence.entity.UserRoleEntity;
+import com.example.cinema_booking.identity.infrastructure.persistence.repository.RoleRepository;
 import com.example.cinema_booking.identity.infrastructure.persistence.repository.UserRepository;
 import com.example.cinema_booking.identity.infrastructure.persistence.repository.UserRoleRepository;
 import java.time.LocalDate;
@@ -19,6 +23,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -27,12 +32,13 @@ class UserPersistenceAdapterTest {
 
   @Mock private UserRepository userRepository;
   @Mock private UserRoleRepository userRoleRepository;
+  @Mock private RoleRepository roleRepository;
 
   private UserPersistenceAdapter adapter;
 
   @BeforeEach
   void setUp() {
-    adapter = new UserPersistenceAdapter(userRepository, userRoleRepository);
+    adapter = new UserPersistenceAdapter(userRepository, userRoleRepository, roleRepository);
   }
 
   private static UserEntity fullUserEntity() {
@@ -106,5 +112,53 @@ class UserPersistenceAdapterTest {
     when(userRoleRepository.findRolesByUserId(1L)).thenReturn(roles);
 
     assertThat(adapter.loadRoles(1L)).isEqualTo(roles);
+  }
+
+  @Test
+  void existsChecksDelegateToUserRepository() {
+    when(userRepository.existsByEmailIgnoreCase("taken@example.com")).thenReturn(true);
+    when(userRepository.existsByPhone("0900000000")).thenReturn(false);
+
+    assertThat(adapter.existsByEmailIgnoreCase("taken@example.com")).isTrue();
+    assertThat(adapter.existsByPhone("0900000000")).isFalse();
+  }
+
+  @Test
+  void savePersistsUserAndGrantsGlobalRole() {
+    UUID publicId = UUID.randomUUID();
+    when(userRepository.save(any(UserEntity.class)))
+        .thenAnswer(
+            invocation -> {
+              UserEntity entity = invocation.getArgument(0);
+              entity.setId(1L);
+              entity.setPublicId(publicId);
+              return entity;
+            });
+    RoleEntity customerRole = new RoleEntity();
+    customerRole.setCode("CUSTOMER");
+    when(roleRepository.getReferenceById("CUSTOMER")).thenReturn(customerRole);
+
+    User draft =
+        User.builder()
+            .email("jane@example.com")
+            .phone(null)
+            .passwordHash("encoded-hash")
+            .fullName("Jane Doe")
+            .dateOfBirth(LocalDate.of(2000, 1, 15))
+            .status(UserStatus.ACTIVE)
+            .build();
+
+    User saved = adapter.save(draft, "CUSTOMER");
+
+    ArgumentCaptor<UserRoleEntity> roleCaptor = ArgumentCaptor.forClass(UserRoleEntity.class);
+    verify(userRoleRepository).save(roleCaptor.capture());
+    assertThat(roleCaptor.getValue().getRole()).isSameAs(customerRole);
+    assertThat(roleCaptor.getValue().getCinemaId()).isNull();
+
+    assertThat(saved.getId()).isEqualTo(1L);
+    assertThat(saved.getPublicId()).isEqualTo(publicId);
+    assertThat(saved.getEmail()).isEqualTo("jane@example.com");
+    assertThat(saved.getPasswordHash()).isEqualTo("encoded-hash");
+    assertThat(saved.getStatus()).isEqualTo(UserStatus.ACTIVE);
   }
 }

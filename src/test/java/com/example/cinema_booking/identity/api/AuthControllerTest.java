@@ -12,12 +12,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.cinema_booking.identity.application.port.in.LoginCommand;
 import com.example.cinema_booking.identity.application.port.in.LoginResult;
 import com.example.cinema_booking.identity.application.port.in.LoginUseCase;
+import com.example.cinema_booking.identity.application.port.in.RegisterCommand;
+import com.example.cinema_booking.identity.application.port.in.RegisterResult;
+import com.example.cinema_booking.identity.application.port.in.RegisterUseCase;
 import com.example.cinema_booking.identity.domain.UserStatus;
 import com.example.cinema_booking.identity.domain.exception.AccountNotActiveException;
+import com.example.cinema_booking.identity.domain.exception.EmailAlreadyExistsException;
 import com.example.cinema_booking.identity.domain.exception.InvalidCredentialsException;
 import com.example.cinema_booking.shared.config.AppProperties;
 import com.example.cinema_booking.shared.config.AppPropertiesTestFactory;
 import com.example.cinema_booking.shared.exception.GlobalExceptionHandler;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -32,6 +37,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 class AuthControllerTest {
 
   private final LoginUseCase loginUseCase = mock(LoginUseCase.class);
+  private final RegisterUseCase registerUseCase = mock(RegisterUseCase.class);
   private MockMvc mockMvc;
 
   @BeforeEach
@@ -49,7 +55,8 @@ class AuthControllerTest {
         AppPropertiesTestFactory.builder().jwt(new AppProperties.Jwt("secret", 900, 7)).build();
 
     mockMvc =
-        MockMvcBuilders.standaloneSetup(new AuthController(loginUseCase, appProperties))
+        MockMvcBuilders.standaloneSetup(
+                new AuthController(loginUseCase, registerUseCase, appProperties))
             .setControllerAdvice(new GlobalExceptionHandler(messageSource))
             .setValidator(validator)
             .build();
@@ -140,5 +147,133 @@ class AuthControllerTest {
                     """))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.detail").value("Account is not active (LOCKED)."));
+  }
+
+  @Test
+  void registerReturnsCreatedUserOnSuccess() throws Exception {
+    UUID publicId = UUID.randomUUID();
+    when(registerUseCase.register(any(RegisterCommand.class)))
+        .thenReturn(
+            new RegisterResult(
+                publicId,
+                "Jane Doe",
+                "jane@example.com",
+                null,
+                LocalDate.of(2000, 1, 15),
+                List.of("CUSTOMER")));
+
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "fullName": "Jane Doe",
+                      "email": "jane@example.com",
+                      "password": "secret123",
+                      "dateOfBirth": "2000-01-15"
+                    }
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.user.id").value(publicId.toString()))
+        .andExpect(jsonPath("$.user.fullName").value("Jane Doe"))
+        .andExpect(jsonPath("$.user.email").value("jane@example.com"))
+        .andExpect(jsonPath("$.user.phone").doesNotExist())
+        .andExpect(jsonPath("$.user.dateOfBirth").value("2000-01-15"))
+        .andExpect(jsonPath("$.user.roles[0]").value("CUSTOMER"));
+
+    verify(registerUseCase)
+        .register(
+            new RegisterCommand(
+                "Jane Doe", "jane@example.com", null, "secret123", LocalDate.of(2000, 1, 15)));
+  }
+
+  @Test
+  void registerPassesOptionalPhoneThrough() throws Exception {
+    UUID publicId = UUID.randomUUID();
+    when(registerUseCase.register(any(RegisterCommand.class)))
+        .thenReturn(
+            new RegisterResult(
+                publicId, "Jane Doe", "jane@example.com", "0912345678", null, List.of("CUSTOMER")));
+
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"fullName":"Jane Doe","email":"jane@example.com","phone":"0912345678","password":"secret123"}
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.user.phone").value("0912345678"));
+  }
+
+  @Test
+  void registerReturnsValidationErrorsWhenRequiredFieldsAreMissing() throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"fullName":"","email":"","password":""}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors.fullName").value("Full name is required."))
+        .andExpect(jsonPath("$.errors.email").value("Email is required."))
+        .andExpect(jsonPath("$.errors.password").value("Password is required."));
+  }
+
+  @Test
+  void registerReturnsValidationErrorWhenEmailFormatIsInvalid() throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"fullName":"Jane Doe","email":"not-an-email","password":"secret123"}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors.email").value("Email address is invalid."));
+  }
+
+  @Test
+  void registerReturnsValidationErrorWhenPasswordIsTooShort() throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"fullName":"Jane Doe","email":"jane@example.com","password":"short"}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(
+            jsonPath("$.errors.password").value("Password must be between 8 and 72 characters."));
+  }
+
+  @Test
+  void registerReturnsConflictWhenEmailIsAlreadyRegistered() throws Exception {
+    when(registerUseCase.register(any(RegisterCommand.class)))
+        .thenThrow(new EmailAlreadyExistsException());
+
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"fullName":"Jane Doe","email":"taken@example.com","password":"secret123"}
+                    """))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.detail").value("This email is already registered."));
   }
 }

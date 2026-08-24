@@ -6,4 +6,8 @@ import java.util.Optional;
 public interface LoadUserPort {
 
   Optional<User> loadByIdentifier(String identifier);
+
+  boolean existsByEmailIgnoreCase(String email);
+
+  boolean existsByPhone(String phone);
 }

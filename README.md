@@ -76,11 +76,12 @@ Do the same (`application-stg.yaml`, `application-prod.yaml`) on staging/product
 
 ## Authentication
 
-Login is JWT-based:
+Registration and login are JWT-based:
 
+- `POST {api.prefix}/auth/register` — body `{ "fullName", "email", "password", "phone"?, "dateOfBirth"? }`. Email and password (8–72 chars) are required; phone is optional. Creates a customer account (`CUSTOMER` role, status `ACTIVE`) and returns it with `201 Created`; duplicate email/phone returns `409 Conflict`. The client then logs in to obtain tokens.
 - `POST {api.prefix}/auth/login` — body `{ "identifier": "<email>", "password": "<password>" }`. On success, returns an access token (`accessToken`, `tokenType`, `expiresIn`, and the authenticated `user`) and sets an `httpOnly` refresh-token cookie scoped to `{api.prefix}/auth`.
 - Protected endpoints require `Authorization: Bearer <accessToken>`; `{api.prefix}/auth/admin/**` additionally requires the `ADMIN` authority.
-- `{api.prefix}/auth/login`, `/api-docs/**`, `/swagger-ui/**`, and `/actuator/**` are the only publicly accessible paths — everything else requires authentication (see `SecurityConfig`).
+- `{api.prefix}/auth/register`, `{api.prefix}/auth/login`, `/api-docs/**`, `/swagger-ui/**`, and `/actuator/**` are the only publicly accessible paths — everything else requires authentication (see `SecurityConfig`).
 
 **Bootstrap admin account**: if both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, `AdminAccountSeeder` creates (or leaves untouched, if it already exists) an admin user with the `ADMIN` role on application startup — this is the way to get your first login on a fresh database. Leave them blank to skip seeding.
 

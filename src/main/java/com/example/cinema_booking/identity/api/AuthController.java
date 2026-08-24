@@ -2,13 +2,19 @@ package com.example.cinema_booking.identity.api;
 
 import com.example.cinema_booking.identity.api.dto.LoginRequest;
 import com.example.cinema_booking.identity.api.dto.LoginResponse;
+import com.example.cinema_booking.identity.api.dto.RegisterRequest;
+import com.example.cinema_booking.identity.api.dto.RegisterResponse;
 import com.example.cinema_booking.identity.application.port.in.LoginCommand;
 import com.example.cinema_booking.identity.application.port.in.LoginResult;
 import com.example.cinema_booking.identity.application.port.in.LoginUseCase;
+import com.example.cinema_booking.identity.application.port.in.RegisterCommand;
+import com.example.cinema_booking.identity.application.port.in.RegisterResult;
+import com.example.cinema_booking.identity.application.port.in.RegisterUseCase;
 import com.example.cinema_booking.shared.config.AppProperties;
 import jakarta.validation.Valid;
 import java.time.Duration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,11 +29,38 @@ public class AuthController {
   static final String BASE_PATH = "/auth";
 
   private final LoginUseCase loginUseCase;
+  private final RegisterUseCase registerUseCase;
   private final AppProperties appProperties;
 
-  public AuthController(LoginUseCase loginUseCase, AppProperties appProperties) {
+  public AuthController(
+      LoginUseCase loginUseCase, RegisterUseCase registerUseCase, AppProperties appProperties) {
     this.loginUseCase = loginUseCase;
+    this.registerUseCase = registerUseCase;
     this.appProperties = appProperties;
+  }
+
+  @PostMapping("/register")
+  public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+    RegisterResult result =
+        registerUseCase.register(
+            new RegisterCommand(
+                request.fullName(),
+                request.email(),
+                request.phone(),
+                request.password(),
+                request.dateOfBirth()));
+
+    RegisterResponse body =
+        new RegisterResponse(
+            new RegisterResponse.User(
+                result.publicId(),
+                result.fullName(),
+                result.email(),
+                result.phone(),
+                result.dateOfBirth(),
+                result.roles()));
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(body);
   }
 
   @PostMapping("/login")
